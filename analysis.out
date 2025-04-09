@@ -1,0 +1,20 @@
+Ahri's stats at level 18:
+hp              2358.0
+mp               843.0
+armor            100.9
+spellblock        52.1
+attackdamage     104.0
+dtype: float64
+
+PCA Explained Variance:
+PC1: 0.4062
+PC2: 0.1207
+PC3: 0.1143
+PC4: 0.0870
+PC5: 0.0780
+PC6: 0.0712
+PC7: 0.0590
+PC8: 0.0396
+PC9: 0.0239
+
+Synergy between Ashe and Leona: 0.8756
