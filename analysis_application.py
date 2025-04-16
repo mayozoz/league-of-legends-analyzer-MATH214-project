@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from itertools import combinations
 from champion_data_collector import fetch_champion_data, create_champion_stat_matrix
 from analysis import (
     perform_pca_analysis,
@@ -36,9 +37,10 @@ def main():
         print("3. Identify champion clusters")
         print("4. Perform PCA analysis on champion stats")
         print("5. Calculate champion synergies")
-        print("6. Exit")
+        print("6. Find top global champion synergies")
+        print("7. Exit")
         
-        choice = input("Enter your choice (1-6): ")
+        choice = input("Enter your choice (1-7): ")
         
         if choice == '1':
             analyze_champion_stats(champion_df)
@@ -51,6 +53,9 @@ def main():
         elif choice == '5':
             calculate_synergies(champion_df)
         elif choice == '6':
+            top_n = int(input("How many top synergies to display? (default: 20): ") or 20)
+            analyze_all_champion_synergies(champion_df, top_n)
+        elif choice == '7':
             print("Exiting...")
             break
         else:
@@ -272,6 +277,129 @@ def calculate_synergies(champion_df):
     print(f"\nTop 5 champions with highest synergy with {champion1}:")
     for champion, synergy in top_synergies:
         print(f"  {champion}: {synergy:.4f}")
+
+
+def analyze_all_champion_synergies(champion_df, top_n=20):
+    """
+    Calculate synergy scores for all possible champion combinations
+    and display the top N highest synergy pairs
+    
+    Parameters:
+    -----------
+    champion_df : pandas.DataFrame
+        DataFrame containing champion statistics
+    top_n : int
+        Number of top synergies to display (default: 20)
+        
+    Returns:
+    --------
+    synergy_df : pandas.DataFrame
+        DataFrame containing all champion pair synergies
+    """
+    print("\n--- Analyzing All Champion Synergies ---")
+    print(f"Calculating synergies for all {len(champion_df)} champions...")
+    
+    # Use only numeric columns for synergy calculation
+    numeric_cols = ['hp', 'mp', 'armor', 'spellblock', 'attackdamage', 
+                    'attackrange', 'movespeed', 'hpregen', 'mpregen']
+    
+    # Get all possible champion pairs
+    champion_pairs = list(combinations(champion_df.index, 2))
+    print(f"Analyzing {len(champion_pairs)} possible champion pairs...")
+    
+    # Calculate synergy for each pair
+    synergy_data = []
+    for champ1, champ2 in champion_pairs:
+        champ1_stats = champion_df.loc[champ1, numeric_cols].values
+        champ2_stats = champion_df.loc[champ2, numeric_cols].values
+        
+        # Normalize the vectors
+        champ1_norm = champ1_stats / np.linalg.norm(champ1_stats)
+        champ2_norm = champ2_stats / np.linalg.norm(champ2_stats)
+        
+        # Calculate cosine similarity
+        synergy = np.dot(champ1_norm, champ2_norm)
+        
+        synergy_data.append({
+            'Champion1': champ1,
+            'Champion2': champ2,
+            'Synergy': synergy
+        })
+    
+    # Create DataFrame of synergies
+    synergy_df = pd.DataFrame(synergy_data)
+    
+    # Find top N synergies
+    top_synergies = synergy_df.sort_values('Synergy', ascending=False).head(top_n)
+    
+    print(f"\nTop {top_n} Champion Synergies:")
+    for idx, row in top_synergies.iterrows():
+        print(f"{row['Champion1']} + {row['Champion2']}: {row['Synergy']:.4f}")
+    
+    # Visualize top synergies as a bar plot
+    plt.figure(figsize=(12, 8))
+    
+    # Create labels for champion pairs
+    pair_labels = [f"{row['Champion1']} + {row['Champion2']}" for _, row in top_synergies.iterrows()]
+    
+    # Create bar plot
+    sns.barplot(x='Synergy', y=pair_labels, data=top_synergies, palette='viridis')
+    
+    plt.title(f'Top {top_n} Champion Synergies')
+    plt.xlabel('Synergy Score')
+    plt.tight_layout()
+    plt.savefig('top_champion_synergies.png')
+    plt.close()
+    
+    print(f"Top synergies visualization saved to 'top_champion_synergies.png'")
+    
+    # Create a heatmap for top 50 synergies
+    print("\nGenerating heatmap of top 50 synergy pairs...")
+    
+    # Get top 50 synergies
+    top_50 = synergy_df.sort_values('Synergy', ascending=False).head(50)
+    
+    # Get unique champions in top 50
+    unique_champs = set()
+    for _, row in top_50.iterrows():
+        unique_champs.add(row['Champion1'])
+        unique_champs.add(row['Champion2'])
+    
+    # Sort champion names for consistent ordering
+    unique_champs = sorted(list(unique_champs))
+    
+    # Create a matrix for the heatmap
+    n_champs = len(unique_champs)
+    heatmap_matrix = np.zeros((n_champs, n_champs))
+    
+    # Create mappings from champion names to indices
+    champ_to_idx = {champ: i for i, champ in enumerate(unique_champs)}
+    
+    # Fill the matrix with synergy values
+    for _, row in top_50.iterrows():
+        i = champ_to_idx[row['Champion1']]
+        j = champ_to_idx[row['Champion2']]
+        heatmap_matrix[i, j] = row['Synergy']
+        heatmap_matrix[j, i] = row['Synergy']  # Make matrix symmetric
+    
+    # Visualize as heatmap
+    plt.figure(figsize=(15, 12))
+    sns.heatmap(
+        heatmap_matrix, 
+        annot=True, 
+        fmt=".3f", 
+        cmap="YlGnBu", 
+        xticklabels=unique_champs, 
+        yticklabels=unique_champs
+    )
+    plt.title('Top 50 Champion Synergies Heatmap')
+    plt.tight_layout()
+    plt.savefig('champion_synergy_heatmap.png')
+    plt.close()
+    
+    print(f"Synergy heatmap saved to 'champion_synergy_heatmap.png'")
+    
+    return synergy_df
 
 if __name__ == "__main__":
     main()
